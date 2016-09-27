@@ -1,8 +1,6 @@
 require 'pdf-reader'
 require 'json'
 
-
-require "pdf-reader"
 class PDF::Reader
   module WidthCalculator
     class BuiltIn
@@ -17,7 +15,7 @@ end
 
 reader = PDF::Reader.new("courses.pdf")
 result = []
-reader.pages[1..92].each do |page|
+reader.pages[1..86].each do |page|
   begin
     # Strip header
     txt = page.text.sub /.*?(?=[\d]{5})/m, ''
@@ -33,7 +31,6 @@ reader.pages[1..92].each do |page|
     array = txt.split(/(?=[\d]{5}[^\d])/)
 
 
-
     array.each do |entry|
       # p entry
       # Section 
@@ -47,7 +44,7 @@ reader.pages[1..92].each do |page|
       entry.sub!(reg_course, '')
 
       # Time
-      reg_time_room = /([M|T|W|H|F|S]+)\s+(\d+:\d+)-(\d+:\d+)\s*([\S]+)/
+      reg_time_room = /([M|T|W|H|F|S|D]+)\s+(\d+:\d+)-(\d+:\d+)\s*([\S]+)/
       times = []
       entry.scan(reg_time_room).collect do |time|
         times << {day: time[0], time: [time[1], time[2]], room: time[3]}
@@ -58,22 +55,38 @@ reader.pages[1..92].each do |page|
       # I gave up and just cheat, fuck regex -Binyuan 2016
       # Both Teacher and Description
 
-      bool_comma = false
+      # bool_comma = false
+      num_comma = 0
       arr_description_array = entry.split(/\s{2,}/)
       int_seperator_index = arr_description_array.length
       arr_description_array.reverse_each do |idgaf|
-        if bool_comma == false
+        if num_comma == 0 or num_comma % 2 == 1
+          if idgaf[idgaf.length - 1] == ','
+            num_comma += 1
+            idgaf[idgaf.length - 1] = ''
+          end
           if idgaf.include?(',')
-            bool_comma = true
-            int_seperator_index = arr_description_array.index(idgaf)
+            num_comma += idgaf.split(',').length
           end
+          if idgaf.include?(';')
+            num_comma += 1
+          end
+          int_seperator_index = arr_description_array.index(idgaf)
         else
-          if idgaf.include?(',') or idgaf.include?(';')
-            int_seperator_index = arr_description_array.index(idgaf)
-            next
-          end
           break
         end
+        # if bool_comma == false
+        #   if idgaf.include?(',')
+        #     bool_comma = true
+        #     int_seperator_index = arr_description_array.index(idgaf)
+        #   end
+        # else
+        #   if (idgaf.include?(',') or idgaf.include?(';')) and (arr_description_array.index(idgaf) != 0)
+        #     int_seperator_index = arr_description_array.index(idgaf)
+        #     next
+        #   end
+        #   break
+        # end
       end
 
       arr_description = arr_description_array[0, int_seperator_index]
@@ -106,8 +119,10 @@ reader.pages[1..92].each do |page|
 
 
       # BIG OBJECT!
-      result << {section: section, meeting: times, name: description, teacher: teacher, code: course}
-
+      # Remove dup
+      if result.find {|f| f[:section] == section and f[:code] == course} == nil
+        result << {section: section, meeting: times, name: description, teacher: teacher, code: course}
+      end
     end
 
     file = File.open("extracted.txt", "w")
